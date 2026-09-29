@@ -7,7 +7,9 @@ import {
   unreserveItem,
   WishItem,
 } from "@/api";
+import { BlurView } from "expo-blur";
 import { Image } from "expo-image";
+import { SymbolView } from "expo-symbols";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
@@ -26,6 +28,14 @@ import {
 type SortOption = "price-low" | "price-high";
 type ReservationFilter = "all" | "unreserved" | "mine" | "others";
 const MAX_PRICE_DKK = 2500;
+const palette = {
+  primary: "#1f4470",
+  primarySoft: "#eaf1f8",
+  primaryBorder: "#b9d5f4",
+  secondary: "#f0f1f2",
+  disabled: "#e1e3e5",
+  disabledText: "#79828b",
+} as const;
 
 export default function Index() {
   const [items, setItems] = useState<WishItem[]>([]);
@@ -49,6 +59,7 @@ export default function Index() {
   const [draftMaxPrice, setDraftMaxPrice] = useState(MAX_PRICE_DKK);
   const [activeSheet, setActiveSheet] = useState<"sort" | "filter">("filter");
   const [isOptionsSheetVisible, setIsOptionsSheetVisible] = useState(false);
+  const hasActiveFilters = reservationFilter !== "all" || minPrice > 0 || maxPrice < MAX_PRICE_DKK;
 
   const visibleItems = useMemo(() => {
     let result = items.filter((item) => {
@@ -93,13 +104,17 @@ export default function Index() {
     closeOptionsSheet();
   }
 
-  function clearFilters() {
+  function resetFilters() {
     setDraftReservationFilter("all");
     setDraftMinPrice(0);
     setDraftMaxPrice(MAX_PRICE_DKK);
     setReservationFilter("all");
     setMinPrice(0);
     setMaxPrice(MAX_PRICE_DKK);
+  }
+
+  function clearFilters() {
+    resetFilters();
     closeOptionsSheet();
   }
 
@@ -217,33 +232,43 @@ export default function Index() {
               accessibilityRole="switch"
               accessibilityState={{ checked: reservationFilter === "unreserved" }}
               onPress={() => setReservationFilter((filter) => filter === "unreserved" ? "all" : "unreserved")}
-              style={[styles.unreservedToggle, reservationFilter === "unreserved" && styles.controlActive]}
+              style={styles.togglePressable}
             >
-              <View style={[styles.toggleTrack, reservationFilter === "unreserved" && styles.toggleTrackActive]}>
-                <View style={[styles.toggleThumb, reservationFilter === "unreserved" && styles.toggleThumbActive]} />
-              </View>
-              <Text style={styles.controlLabel}>Unreserved only</Text>
+              <BlurView intensity={36} tint="light" style={styles.unreservedToggle}>
+                <View style={[styles.toggleTrack, reservationFilter === "unreserved" && styles.toggleTrackActive]}>
+                  <View style={[styles.toggleThumb, reservationFilter === "unreserved" && styles.toggleThumbActive]} />
+                </View>
+                <Text style={styles.controlLabel}>Unreserved only</Text>
+              </BlurView>
             </Pressable>
             <Pressable
               accessibilityRole="button"
               accessibilityLabel="Choose sorting"
               onPress={openSortSheet}
-              style={styles.controlButton}
+              style={styles.controlPressable}
             >
-              <Text style={styles.controlIcon}>↕</Text>
-              <Text style={styles.controlLabel}>Sort</Text>
+              <BlurView intensity={36} tint="light" style={styles.controlButton}>
+                <Text style={styles.controlIcon}>↕</Text>
+                <Text style={styles.controlLabel}>Sort</Text>
+              </BlurView>
             </Pressable>
             <Pressable
               accessibilityRole="button"
               accessibilityLabel="Choose filters"
               onPress={openFilterSheet}
-              style={[
-                styles.controlButton,
-                (reservationFilter !== "all" || minPrice > 0 || maxPrice < MAX_PRICE_DKK) && styles.controlActive,
-              ]}
+              style={styles.controlPressable}
             >
-              <Text style={styles.controlIcon}>☷</Text>
-              <Text style={styles.controlLabel}>Filter</Text>
+              <BlurView
+                intensity={36}
+                tint="light"
+                style={[
+                  styles.controlButton,
+                  (reservationFilter !== "all" || minPrice > 0 || maxPrice < MAX_PRICE_DKK) && styles.controlActive,
+                ]}
+              >
+                <Text style={styles.controlIcon}>☷</Text>
+                <Text style={styles.controlLabel}>Filter</Text>
+              </BlurView>
             </Pressable>
           </View>
         }
@@ -252,14 +277,19 @@ export default function Index() {
             {items.length === 0 ? "No items yet." : "No items match these filters."}
           </Text>
         }
+        ListFooterComponent={hasActiveFilters ? (
+          <Pressable accessibilityRole="button" onPress={resetFilters} style={styles.clearFiltersLink}>
+            <Text style={styles.clearFiltersLinkText}>Clear all filters</Text>
+          </Pressable>
+        ) : null}
         renderItem={({ item }) => (
-          <View style={styles.item}>
+          <BlurView intensity={32} tint="light" style={styles.item}>
             <View style={styles.productImageStage}>
               {item.imageUrl ? (
                 <Image source={{ uri: item.imageUrl }} contentFit="cover" transition={180} style={styles.productImage} />
               ) : (
                 <View style={styles.productPlaceholder}>
-                  <Text style={styles.productEmoji}>{getItemImageFallback(item.title)}</Text>
+                  <SymbolView name={getItemSymbol(item.title)} size={50} tintColor="#776956" />
                 </View>
               )}
             </View>
@@ -317,7 +347,7 @@ export default function Index() {
                 </View>
               )}
             </Pressable>
-          </View>
+          </BlurView>
         )}
       />
 
@@ -344,8 +374,11 @@ export default function Index() {
             accessibilityLabel="Close add item form"
             onPress={() => setIsAddModalVisible(false)}
             style={styles.backdrop}
-          />
-          <View style={styles.sheet}>
+          >
+            <BlurView pointerEvents="none" intensity={48} tint="dark" style={StyleSheet.absoluteFill} />
+            <View pointerEvents="none" style={styles.backdropShade} />
+          </Pressable>
+          <BlurView intensity={70} tint="light" style={styles.sheet}>
             <View style={styles.sheetHandle} />
             <View style={styles.sheetHeader}>
               <Text style={styles.sheetTitle}>Add an item</Text>
@@ -409,7 +442,7 @@ export default function Index() {
                 <Text style={styles.submitLabel}>Add to wishlist</Text>
               )}
             </Pressable>
-          </View>
+          </BlurView>
         </KeyboardAvoidingView>
       </Modal>
 
@@ -424,8 +457,11 @@ export default function Index() {
             accessibilityLabel="Close reservation notice"
             onPress={() => setConflictItem(null)}
             style={styles.backdrop}
-          />
-          <View style={styles.conflictSheet}>
+          >
+            <BlurView pointerEvents="none" intensity={48} tint="dark" style={StyleSheet.absoluteFill} />
+            <View pointerEvents="none" style={styles.backdropShade} />
+          </Pressable>
+          <BlurView intensity={70} tint="light" style={styles.conflictSheet}>
             <View style={styles.sheetHandle} />
             <View style={styles.conflictIcon}>
               <Text style={styles.conflictIconLabel}>♙</Text>
@@ -437,7 +473,11 @@ export default function Index() {
             {conflictItem ? (
               <View style={styles.conflictItem}>
                 <View style={styles.conflictItemImage}>
-                  <Text style={styles.conflictItemEmoji}>🎁</Text>
+                  <SymbolView
+                    name={{ ios: "gift", android: "redeem", web: "redeem" }}
+                    size={24}
+                    tintColor="#776956"
+                  />
                 </View>
                 <View style={styles.conflictItemInfo}>
                   <Text numberOfLines={1} style={styles.conflictItemTitle}>
@@ -460,7 +500,7 @@ export default function Index() {
             >
               <Text style={styles.submitLabel}>View updated list</Text>
             </Pressable>
-          </View>
+          </BlurView>
         </View>
       </Modal>
 
@@ -475,8 +515,11 @@ export default function Index() {
             accessibilityLabel="Close options"
             onPress={closeOptionsSheet}
             style={styles.backdrop}
-          />
-          <View style={styles.sheet}>
+          >
+            <BlurView pointerEvents="none" intensity={48} tint="dark" style={StyleSheet.absoluteFill} />
+            <View pointerEvents="none" style={styles.backdropShade} />
+          </Pressable>
+          <BlurView intensity={70} tint="light" style={styles.sheet}>
             <View style={styles.sheetHandle} />
             <View style={styles.sheetHeader}>
               <Text style={styles.sheetTitle}>
@@ -546,7 +589,7 @@ export default function Index() {
                 </View>
               </>
             )}
-          </View>
+          </BlurView>
         </View>
       </Modal>
     </View>
@@ -569,6 +612,7 @@ function OptionRow({ label, selected, onPress }: { label: string; selected: bool
   );
 }
 
+
 function StatusOption({ label, icon, selected, onPress }: { label: string; icon: string; selected: boolean; onPress: () => void }) {
   return (
     <Pressable accessibilityRole="radio" accessibilityState={{ checked: selected }} onPress={onPress} style={styles.statusOption}>
@@ -589,17 +633,33 @@ function RangePreset({ label, active, onPress }: { label: string; active: boolea
   );
 }
 
-function getItemImageFallback(title: string) {
+function getItemSymbol(title: string) {
   const normalizedTitle = title.toLowerCase();
-  if (normalizedTitle.includes("coffee") || normalizedTitle.includes("espresso") || normalizedTitle.includes("pour-over")) return "☕";
-  if (normalizedTitle.includes("blanket") || normalizedTitle.includes("wool")) return "🧣";
-  if (normalizedTitle.includes("headphone")) return "🎧";
-  if (normalizedTitle.includes("pan") || normalizedTitle.includes("cast iron")) return "🍳";
-  if (normalizedTitle.includes("lamp")) return "💡";
-  if (normalizedTitle.includes("lego") || normalizedTitle.includes("architecture")) return "🏰";
-  if (normalizedTitle.includes("shoe") || normalizedTitle.includes("nike")) return "👟";
-  if (normalizedTitle.includes("kindle") || normalizedTitle.includes("paperwhite") || normalizedTitle.includes("book")) return "📖";
-  return "🎁";
+  if (normalizedTitle.includes("coffee") || normalizedTitle.includes("espresso") || normalizedTitle.includes("pour-over")) {
+    return { ios: "cup.and.saucer.fill", android: "coffee", web: "coffee" } as const;
+  }
+  if (normalizedTitle.includes("blanket") || normalizedTitle.includes("wool")) {
+    return { ios: "bed.double.fill", android: "bed", web: "bed" } as const;
+  }
+  if (normalizedTitle.includes("headphone")) {
+    return { ios: "headphones", android: "headphones", web: "headphones" } as const;
+  }
+  if (normalizedTitle.includes("pan") || normalizedTitle.includes("cast iron")) {
+    return { ios: "fork.knife", android: "restaurant", web: "restaurant" } as const;
+  }
+  if (normalizedTitle.includes("lamp")) {
+    return { ios: "lightbulb.fill", android: "lightbulb", web: "lightbulb" } as const;
+  }
+  if (normalizedTitle.includes("lego") || normalizedTitle.includes("architecture")) {
+    return { ios: "building.2.fill", android: "account_balance", web: "account_balance" } as const;
+  }
+  if (normalizedTitle.includes("shoe") || normalizedTitle.includes("nike")) {
+    return { ios: "figure.walk", android: "directions_walk", web: "directions_walk" } as const;
+  }
+  if (normalizedTitle.includes("kindle") || normalizedTitle.includes("paperwhite") || normalizedTitle.includes("book")) {
+    return { ios: "book.closed.fill", android: "menu_book", web: "menu_book" } as const;
+  }
+  return { ios: "gift", android: "redeem", web: "redeem" } as const;
 }
 
 function PriceRangeSlider({ min, max, onChangeMin, onChangeMax }: {
@@ -670,7 +730,7 @@ const styles = StyleSheet.create({
   },
   screen: {
     flex: 1,
-    backgroundColor: "#f2ece6",
+    backgroundColor: "#eee6dd",
   },
   statusText: {
     color: "#555",
@@ -692,9 +752,20 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 7,
-    backgroundColor: "#fff",
+    backgroundColor: "rgba(255,255,255,0.12)",
     borderWidth: 1,
-    borderColor: "#e2e4e6",
+    borderColor: "rgba(255,255,255,0.72)",
+    overflow: "hidden",
+  },
+  controlPressable: {
+    borderRadius: 20,
+    overflow: "hidden",
+  },
+  togglePressable: {
+    flex: 1,
+    minWidth: 0,
+    borderRadius: 20,
+    overflow: "hidden",
   },
   toggleTrack: {
     width: 26,
@@ -705,7 +776,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#d6d9dc",
   },
   toggleTrackActive: {
-    backgroundColor: "#24734a",
+    backgroundColor: palette.primary,
   },
   toggleThumb: {
     width: 12,
@@ -724,17 +795,20 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     borderRadius: 20,
     borderWidth: 1,
-    borderColor: "#e2e4e6",
-    backgroundColor: "#fff",
+    borderColor: "rgba(255,255,255,0.72)",
+    backgroundColor: "rgba(255,255,255,0.12)",
+    overflow: "hidden",
   },
   controlActive: {
-    borderColor: "#9bc4aa",
-    backgroundColor: "#eef7f1",
+    borderColor: "rgba(31,68,112,0.78)",
   },
   controlLabel: {
     color: "#30363b",
     fontSize: 12,
     fontWeight: "600",
+  },
+  activeControlLabel: {
+    color: palette.primary,
   },
   controlIcon: {
     color: "#30363b",
@@ -743,7 +817,7 @@ const styles = StyleSheet.create({
   },
   list: {
     flex: 1,
-    backgroundColor: "#f2ece6",
+    backgroundColor: "#eee6dd",
   },
   listContent: {
     paddingHorizontal: 14,
@@ -751,22 +825,36 @@ const styles = StyleSheet.create({
     paddingBottom: 94,
     gap: 10,
   },
+  clearFiltersLink: {
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 12,
+  },
+  clearFiltersLinkText: {
+    color: palette.primary,
+    fontSize: 14,
+    fontWeight: "600",
+  },
   cardRow: {
     gap: 10,
   },
   item: {
-    backgroundColor: "white",
+    backgroundColor: "rgba(255,255,255,0.18)",
     borderRadius: 17,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.88)",
     padding: 8,
     gap: 3,
-    flex: 1,
+    flexBasis: "48.5%",
+    flexGrow: 0,
+    flexShrink: 1,
     minWidth: 0,
     overflow: "hidden",
     shadowColor: "#614d3e",
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.09,
-    shadowRadius: 5,
-    elevation: 2,
+    shadowOpacity: 0.13,
+    shadowRadius: 8,
+    elevation: 3,
   },
   productImageStage: {
     height: 102,
@@ -785,9 +873,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: "#eee5dc",
-  },
-  productEmoji: {
-    fontSize: 52,
   },
   title: {
     minHeight: 30,
@@ -815,16 +900,16 @@ const styles = StyleSheet.create({
     minHeight: 31,
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: "#1f4470",
-    backgroundColor: "#1f4470",
+    borderColor: palette.primary,
+    backgroundColor: palette.primary,
     alignItems: "center",
     justifyContent: "center",
     marginTop: 2,
     marginBottom: 1,
   },
   reserveButtonDisabled: {
-    borderColor: "#e1e3e5",
-    backgroundColor: "#e1e3e5",
+    borderColor: palette.disabled,
+    backgroundColor: palette.disabled,
   },
   reserveLabel: {
     color: "white",
@@ -832,7 +917,7 @@ const styles = StyleSheet.create({
     fontWeight: "700",
   },
   reserveLabelDisabled: {
-    color: "#79828b",
+    color: palette.disabledText,
   },
   reserveButtonText: {
     alignItems: "center",
@@ -845,7 +930,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#ffffff",
   },
   ownedReservationLabel: {
-    color: "#1f4470",
+    color: palette.primary,
   },
   unreserveHint: {
     color: "#58718c",
@@ -858,11 +943,12 @@ const styles = StyleSheet.create({
     bottom: 22,
     height: 46,
     borderRadius: 24,
-    backgroundColor: "rgba(255,255,255,0.91)",
+    backgroundColor: "rgba(255,255,255,0.38)",
     alignItems: "center",
     justifyContent: "center",
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.9)",
+    borderColor: "rgba(255,255,255,0.82)",
+    overflow: "hidden",
     elevation: 6,
     shadowColor: "#55483d",
     shadowOffset: { width: 0, height: 3 },
@@ -883,16 +969,21 @@ const styles = StyleSheet.create({
   },
   backdrop: {
     ...StyleSheet.absoluteFill,
-    backgroundColor: "rgba(0, 0, 0, 0.42)",
+    backgroundColor: "transparent",
+  },
+  backdropShade: {
+    ...StyleSheet.absoluteFill,
+    backgroundColor: "rgba(14, 22, 30, 0.18)",
   },
   sheet: {
-    backgroundColor: "white",
+    backgroundColor: "rgba(255,255,255,0.22)",
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     paddingHorizontal: 22,
     paddingTop: 12,
     paddingBottom: 32,
     gap: 9,
+    overflow: "hidden",
   },
   optionRow: {
     minHeight: 50,
@@ -914,9 +1005,10 @@ const styles = StyleSheet.create({
     marginBottom: 2,
   },
   statusOptions: {
-    backgroundColor: "#f3f3f3",
+    backgroundColor: "rgba(255,255,255,0.28)",
     borderRadius: 14,
     paddingHorizontal: 10,
+    overflow: "hidden",
   },
   statusOption: {
     minHeight: 42,
@@ -954,8 +1046,8 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   statusCheckSelected: {
-    backgroundColor: "#347ff0",
-    borderColor: "#347ff0",
+    backgroundColor: palette.primary,
+    borderColor: palette.primary,
   },
   statusCheckMark: {
     color: "white",
@@ -988,7 +1080,7 @@ const styles = StyleSheet.create({
     position: "absolute",
     height: 4,
     borderRadius: 2,
-    backgroundColor: "#347ff0",
+    backgroundColor: palette.primary,
   },
   sliderThumb: {
     position: "absolute",
@@ -996,7 +1088,7 @@ const styles = StyleSheet.create({
     height: 18,
     marginLeft: -9,
     borderRadius: 9,
-    backgroundColor: "#347ff0",
+    backgroundColor: palette.primary,
     borderWidth: 2,
     borderColor: "white",
     shadowColor: "#000",
@@ -1033,15 +1125,15 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
   },
   rangePresetActive: {
-    backgroundColor: "#eaf1ff",
-    borderColor: "#c6d8ff",
+    backgroundColor: palette.primarySoft,
+    borderColor: palette.primaryBorder,
   },
   rangePresetLabel: {
     color: "#4e5962",
     fontSize: 12,
   },
   rangePresetLabelActive: {
-    color: "#246be0",
+    color: palette.primary,
     fontWeight: "600",
   },
   filterActions: {
@@ -1055,7 +1147,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     borderRadius: 23,
-    backgroundColor: "#f0f1f2",
+    backgroundColor: palette.secondary,
   },
   clearLabel: {
     color: "#30363b",
@@ -1068,7 +1160,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     borderRadius: 23,
-    backgroundColor: "#347ff0",
+    backgroundColor: palette.primary,
   },
   radio: {
     width: 21,
@@ -1080,13 +1172,13 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   radioSelected: {
-    borderColor: "#24734a",
+    borderColor: palette.primary,
   },
   radioDot: {
     width: 11,
     height: 11,
     borderRadius: 6,
-    backgroundColor: "#24734a",
+    backgroundColor: palette.primary,
   },
   sheetHandle: {
     alignSelf: "center",
@@ -1135,7 +1227,7 @@ const styles = StyleSheet.create({
     minHeight: 50,
     borderRadius: 12,
     marginTop: 6,
-    backgroundColor: "#24734a",
+    backgroundColor: palette.primary,
     alignItems: "center",
     justifyContent: "center",
   },
@@ -1151,7 +1243,7 @@ const styles = StyleSheet.create({
     fontWeight: "700",
   },
   conflictSheet: {
-    backgroundColor: "#fffaf7",
+    backgroundColor: "rgba(255,250,247,0.22)",
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     paddingHorizontal: 22,
@@ -1159,6 +1251,7 @@ const styles = StyleSheet.create({
     paddingBottom: 30,
     alignItems: "center",
     gap: 12,
+    overflow: "hidden",
   },
   conflictIcon: {
     width: 54,
@@ -1206,9 +1299,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  conflictItemEmoji: {
-    fontSize: 24,
-  },
   conflictItemInfo: {
     flex: 1,
     gap: 3,
@@ -1235,7 +1325,7 @@ const styles = StyleSheet.create({
     width: "100%",
     minHeight: 48,
     borderRadius: 24,
-    backgroundColor: "#347ff0",
+    backgroundColor: palette.primary,
     alignItems: "center",
     justifyContent: "center",
     marginTop: 2,
