@@ -7,12 +7,13 @@ import {
   unreserveItem,
   WishItem,
 } from "@/api";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   FlatList,
   KeyboardAvoidingView,
   Modal,
+  PanResponder,
   Platform,
   Pressable,
   StyleSheet,
@@ -20,6 +21,10 @@ import {
   TextInput,
   View,
 } from "react-native";
+
+type SortOption = "price-low" | "price-high";
+type ReservationFilter = "all" | "unreserved" | "mine" | "others";
+const MAX_PRICE_DKK = 2500;
 
 export default function Index() {
   const [items, setItems] = useState<WishItem[]>([]);
@@ -34,6 +39,68 @@ export default function Index() {
   const [reservingItemIds, setReservingItemIds] = useState<Set<string>>(() => new Set());
   const [conflictItem, setConflictItem] = useState<WishItem | null>(null);
   const [reserveError, setReserveError] = useState<{ id: string; message: string } | null>(null);
+  const [sortOption, setSortOption] = useState<SortOption>("price-low");
+  const [reservationFilter, setReservationFilter] = useState<ReservationFilter>("all");
+  const [draftReservationFilter, setDraftReservationFilter] = useState<ReservationFilter>("all");
+  const [minPrice, setMinPrice] = useState(0);
+  const [maxPrice, setMaxPrice] = useState(MAX_PRICE_DKK);
+  const [draftMinPrice, setDraftMinPrice] = useState(0);
+  const [draftMaxPrice, setDraftMaxPrice] = useState(MAX_PRICE_DKK);
+  const [activeSheet, setActiveSheet] = useState<"sort" | "filter">("filter");
+  const [isOptionsSheetVisible, setIsOptionsSheetVisible] = useState(false);
+
+  const visibleItems = useMemo(() => {
+    let result = items.filter((item) => {
+      if (reservationFilter === "unreserved" && item.reservedBy !== null) return false;
+      if (reservationFilter === "mine" && item.reservedBy !== CURRENT_USER) return false;
+      if (reservationFilter === "others" && (!item.reservedBy || item.reservedBy === CURRENT_USER)) return false;
+      if (item.priceMinor < minPrice * 100) return false;
+      if (maxPrice < MAX_PRICE_DKK && item.priceMinor > maxPrice * 100) return false;
+      return true;
+    });
+
+    if (sortOption === "price-low") {
+      result = [...result].sort((a, b) => a.priceMinor - b.priceMinor);
+    } else {
+      result = [...result].sort((a, b) => b.priceMinor - a.priceMinor);
+    }
+
+    return result;
+  }, [items, reservationFilter, minPrice, maxPrice, sortOption]);
+
+  function openFilterSheet() {
+    setDraftReservationFilter(reservationFilter);
+    setDraftMinPrice(minPrice);
+    setDraftMaxPrice(maxPrice);
+    setActiveSheet("filter");
+    setIsOptionsSheetVisible(true);
+  }
+
+  function openSortSheet() {
+    setActiveSheet("sort");
+    setIsOptionsSheetVisible(true);
+  }
+
+  function closeOptionsSheet() {
+    setIsOptionsSheetVisible(false);
+  }
+
+  function applyFilter() {
+    setReservationFilter(draftReservationFilter);
+    setMinPrice(draftMinPrice);
+    setMaxPrice(draftMaxPrice);
+    closeOptionsSheet();
+  }
+
+  function clearFilters() {
+    setDraftReservationFilter("all");
+    setDraftMinPrice(0);
+    setDraftMaxPrice(MAX_PRICE_DKK);
+    setReservationFilter("all");
+    setMinPrice(0);
+    setMaxPrice(MAX_PRICE_DKK);
+    closeOptionsSheet();
+  }
 
   useEffect(() => {
     async function loadItems() {
@@ -58,7 +125,7 @@ export default function Index() {
       return;
     }
     if (!price.trim() || !Number.isFinite(parsedPrice) || parsedPrice < 0) {
-      setFormError("Enter a valid pric.");
+      setFormError("Enter a valid price.");
       return;
     }
 
@@ -139,9 +206,49 @@ export default function Index() {
       <FlatList
         style={styles.list}
         contentContainerStyle={styles.listContent}
-        data={items}
+        data={visibleItems}
         keyExtractor={(item) => item.id}
-        ListEmptyComponent={<Text style={styles.statusText}>No items yet.</Text>}
+        ListHeaderComponent={
+          <View style={styles.controls}>
+            <Pressable
+              accessibilityRole="switch"
+              accessibilityState={{ checked: reservationFilter === "unreserved" }}
+              onPress={() => setReservationFilter((filter) => filter === "unreserved" ? "all" : "unreserved")}
+              style={[styles.unreservedToggle, reservationFilter === "unreserved" && styles.controlActive]}
+            >
+              <View style={[styles.toggleTrack, reservationFilter === "unreserved" && styles.toggleTrackActive]}>
+                <View style={[styles.toggleThumb, reservationFilter === "unreserved" && styles.toggleThumbActive]} />
+              </View>
+              <Text style={styles.controlLabel}>Unreserved only</Text>
+            </Pressable>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Choose sorting"
+              onPress={openSortSheet}
+              style={styles.controlButton}
+            >
+              <Text style={styles.controlIcon}>↕</Text>
+              <Text style={styles.controlLabel}>Sort</Text>
+            </Pressable>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Choose filters"
+              onPress={openFilterSheet}
+              style={[
+                styles.controlButton,
+                (reservationFilter !== "all" || minPrice > 0 || maxPrice < MAX_PRICE_DKK) && styles.controlActive,
+              ]}
+            >
+              <Text style={styles.controlIcon}>☷</Text>
+              <Text style={styles.controlLabel}>Filter</Text>
+            </Pressable>
+          </View>
+        }
+        ListEmptyComponent={
+          <Text style={styles.statusText}>
+            {items.length === 0 ? "No items yet." : "No items match these filters."}
+          </Text>
+        }
         renderItem={({ item }) => (
           <View style={styles.item}>
             <Text style={styles.title}>{item.title}</Text>
@@ -350,6 +457,186 @@ export default function Index() {
           </View>
         </View>
       </Modal>
+
+      <Modal
+        visible={isOptionsSheetVisible}
+        transparent
+        animationType="slide"
+        onRequestClose={closeOptionsSheet}
+      >
+        <View style={styles.modalRoot}>
+          <Pressable
+            accessibilityLabel="Close options"
+            onPress={closeOptionsSheet}
+            style={styles.backdrop}
+          />
+          <View style={styles.sheet}>
+            <View style={styles.sheetHandle} />
+            <View style={styles.sheetHeader}>
+              <Text style={styles.sheetTitle}>
+                {activeSheet === "sort" ? "Sort items" : "Filter items"}
+              </Text>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Close"
+                onPress={closeOptionsSheet}
+                hitSlop={12}
+              >
+                <Text style={styles.closeLabel}>✕</Text>
+              </Pressable>
+            </View>
+            {activeSheet === "sort" ? (
+              <>
+                <OptionRow
+                  label="Price: low to high"
+                  selected={sortOption === "price-low"}
+                  onPress={() => { setSortOption("price-low"); closeOptionsSheet(); }}
+                />
+                <OptionRow
+                  label="Price: high to low"
+                  selected={sortOption === "price-high"}
+                  onPress={() => { setSortOption("price-high"); closeOptionsSheet(); }}
+                />
+              </>
+            ) : (
+              <>
+                <Text style={styles.filterSectionTitle}>Status</Text>
+                <View style={styles.statusOptions}>
+                  <StatusOption label="All items" icon="●" selected={draftReservationFilter === "all"} onPress={() => setDraftReservationFilter("all")} />
+                  <StatusOption label="Unreserved only" icon="◉" selected={draftReservationFilter === "unreserved"} onPress={() => setDraftReservationFilter("unreserved")} />
+                  <StatusOption label="Reserved by me" icon="♙" selected={draftReservationFilter === "mine"} onPress={() => setDraftReservationFilter("mine")} />
+                  <StatusOption label="Reserved by others" icon="♙♙" selected={draftReservationFilter === "others"} onPress={() => setDraftReservationFilter("others")} />
+                </View>
+
+                <View style={styles.priceHeading}>
+                  <Text style={styles.filterSectionTitle}>Price range</Text>
+                  <Text style={styles.priceSelection}>
+                    {draftMinPrice.toLocaleString("da-DK")}–{draftMaxPrice.toLocaleString("da-DK")}{draftMaxPrice === MAX_PRICE_DKK ? "+" : ""} kr.
+                  </Text>
+                </View>
+                <PriceRangeSlider
+                  min={draftMinPrice}
+                  max={draftMaxPrice}
+                  onChangeMin={setDraftMinPrice}
+                  onChangeMax={setDraftMaxPrice}
+                />
+                <View style={styles.rangeLabels}>
+                  <Text style={styles.rangeLabel}>0 kr.</Text>
+                  <Text style={styles.rangeLabel}>{MAX_PRICE_DKK.toLocaleString("da-DK")}+ kr.</Text>
+                </View>
+                <View style={styles.pricePresets}>
+                  <RangePreset label="Any price" active={draftMinPrice === 0 && draftMaxPrice === MAX_PRICE_DKK} onPress={() => { setDraftMinPrice(0); setDraftMaxPrice(MAX_PRICE_DKK); }} />
+                  <RangePreset label="Under 500 kr." active={draftMinPrice === 0 && draftMaxPrice === 500} onPress={() => { setDraftMinPrice(0); setDraftMaxPrice(500); }} />
+                  <RangePreset label="500–1,000 kr." active={draftMinPrice === 500 && draftMaxPrice === 1000} onPress={() => { setDraftMinPrice(500); setDraftMaxPrice(1000); }} />
+                  <RangePreset label="Over 1,000 kr." active={draftMinPrice === 1000 && draftMaxPrice === MAX_PRICE_DKK} onPress={() => { setDraftMinPrice(1000); setDraftMaxPrice(MAX_PRICE_DKK); }} />
+                </View>
+                <View style={styles.filterActions}>
+                  <Pressable accessibilityRole="button" onPress={clearFilters} style={styles.clearButton}>
+                    <Text style={styles.clearLabel}>Clear all</Text>
+                  </Pressable>
+                  <Pressable accessibilityRole="button" onPress={applyFilter} style={styles.applyButton}>
+                    <Text style={styles.submitLabel}>Apply</Text>
+                  </Pressable>
+                </View>
+              </>
+            )}
+          </View>
+        </View>
+      </Modal>
+    </View>
+  );
+}
+
+function OptionRow({ label, selected, onPress }: { label: string; selected: boolean; onPress: () => void }) {
+  return (
+    <Pressable
+      accessibilityRole="radio"
+      accessibilityState={{ checked: selected }}
+      onPress={onPress}
+      style={styles.optionRow}
+    >
+      <Text style={styles.optionLabel}>{label}</Text>
+      <View style={[styles.radio, selected && styles.radioSelected]}>
+        {selected ? <View style={styles.radioDot} /> : null}
+      </View>
+    </Pressable>
+  );
+}
+
+function StatusOption({ label, icon, selected, onPress }: { label: string; icon: string; selected: boolean; onPress: () => void }) {
+  return (
+    <Pressable accessibilityRole="radio" accessibilityState={{ checked: selected }} onPress={onPress} style={styles.statusOption}>
+      <View style={styles.statusIcon}><Text style={styles.statusIconText}>{icon}</Text></View>
+      <Text style={styles.statusOptionLabel}>{label}</Text>
+      <View style={[styles.statusCheck, selected && styles.statusCheckSelected]}>
+        {selected ? <Text style={styles.statusCheckMark}>✓</Text> : null}
+      </View>
+    </Pressable>
+  );
+}
+
+function RangePreset({ label, active, onPress }: { label: string; active: boolean; onPress: () => void }) {
+  return (
+    <Pressable accessibilityRole="button" onPress={onPress} style={[styles.rangePreset, active && styles.rangePresetActive]}>
+      <Text style={[styles.rangePresetLabel, active && styles.rangePresetLabelActive]}>{label}</Text>
+    </Pressable>
+  );
+}
+
+function PriceRangeSlider({ min, max, onChangeMin, onChangeMax }: {
+  min: number;
+  max: number;
+  onChangeMin: (value: number) => void;
+  onChangeMax: (value: number) => void;
+}) {
+  const trackRef = useRef<View>(null);
+  const trackWidth = useRef(1);
+  const trackLeft = useRef(0);
+  const minRef = useRef(min);
+  const maxRef = useRef(max);
+  const activeThumb = useRef<"min" | "max">("min");
+  minRef.current = min;
+  maxRef.current = max;
+
+  const responder = useMemo(() => PanResponder.create({
+    onStartShouldSetPanResponder: () => true,
+    onMoveShouldSetPanResponder: () => true,
+    onPanResponderGrant: (event, gesture) => {
+      trackRef.current?.measureInWindow((x, _y, width) => {
+        trackLeft.current = x;
+        trackWidth.current = Math.max(width, 1);
+        const localX = gesture.x0 - x;
+        const minX = minRef.current / MAX_PRICE_DKK * width;
+        const maxX = maxRef.current / MAX_PRICE_DKK * width;
+        activeThumb.current = Math.abs(localX - minX) <= Math.abs(localX - maxX) ? "min" : "max";
+        updateValue(localX);
+      });
+    },
+    onPanResponderMove: (_event, gesture) => updateValue(gesture.moveX - trackLeft.current),
+  // The refs track current values; these callbacks remain stable for the gesture responder.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }), []);
+
+  function updateValue(localX: number) {
+    const value = Math.max(0, Math.min(MAX_PRICE_DKK, Math.round(localX / trackWidth.current * MAX_PRICE_DKK / 50) * 50));
+    if (activeThumb.current === "min") {
+      onChangeMin(Math.min(value, maxRef.current));
+    } else {
+      onChangeMax(Math.max(value, minRef.current));
+    }
+  }
+
+  return (
+    <View style={styles.sliderTouchArea} {...responder.panHandlers}>
+      <View
+        ref={trackRef}
+        onLayout={(event) => { trackWidth.current = event.nativeEvent.layout.width; }}
+        style={styles.sliderTrack}
+      >
+        <View style={[styles.sliderSelection, { left: `${min / MAX_PRICE_DKK * 100}%`, right: `${100 - max / MAX_PRICE_DKK * 100}%` }]} />
+        <View style={[styles.sliderThumb, { left: `${min / MAX_PRICE_DKK * 100}%` }]} />
+        <View style={[styles.sliderThumb, { left: `${max / MAX_PRICE_DKK * 100}%` }]} />
+      </View>
     </View>
   );
 }
@@ -370,6 +657,70 @@ const styles = StyleSheet.create({
     color: "#555",
     fontSize: 16,
     textAlign: "center",
+  },
+  controls: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 7,
+    marginBottom: 14,
+  },
+  unreservedToggle: {
+    flex: 1,
+    minHeight: 40,
+    borderRadius: 20,
+    paddingHorizontal: 10,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 7,
+    backgroundColor: "#fff",
+    borderWidth: 1,
+    borderColor: "#e2e4e6",
+  },
+  toggleTrack: {
+    width: 26,
+    height: 16,
+    borderRadius: 8,
+    padding: 2,
+    justifyContent: "center",
+    backgroundColor: "#d6d9dc",
+  },
+  toggleTrackActive: {
+    backgroundColor: "#24734a",
+  },
+  toggleThumb: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    backgroundColor: "white",
+  },
+  toggleThumbActive: {
+    alignSelf: "flex-end",
+  },
+  controlButton: {
+    minHeight: 40,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    paddingHorizontal: 10,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: "#e2e4e6",
+    backgroundColor: "#fff",
+  },
+  controlActive: {
+    borderColor: "#9bc4aa",
+    backgroundColor: "#eef7f1",
+  },
+  controlLabel: {
+    color: "#30363b",
+    fontSize: 12,
+    fontWeight: "600",
+  },
+  controlIcon: {
+    color: "#30363b",
+    fontSize: 15,
+    fontWeight: "700",
   },
   list: {
     flex: 1,
@@ -476,6 +827,200 @@ const styles = StyleSheet.create({
     paddingTop: 12,
     paddingBottom: 32,
     gap: 9,
+  },
+  optionRow: {
+    minHeight: 50,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: "#e7e7e7",
+  },
+  optionLabel: {
+    color: "#292d31",
+    fontSize: 16,
+  },
+  filterSectionTitle: {
+    color: "#25292d",
+    fontSize: 14,
+    fontWeight: "700",
+    marginTop: 6,
+    marginBottom: 2,
+  },
+  statusOptions: {
+    backgroundColor: "#f3f3f3",
+    borderRadius: 14,
+    paddingHorizontal: 10,
+  },
+  statusOption: {
+    minHeight: 42,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: "#dedede",
+  },
+  statusIcon: {
+    width: 21,
+    height: 21,
+    borderRadius: 11,
+    backgroundColor: "#e5e9ed",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  statusIconText: {
+    color: "#56616a",
+    fontSize: 11,
+    fontWeight: "700",
+  },
+  statusOptionLabel: {
+    flex: 1,
+    color: "#343a40",
+    fontSize: 14,
+  },
+  statusCheck: {
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    borderWidth: 1,
+    borderColor: "#b8bec4",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  statusCheckSelected: {
+    backgroundColor: "#347ff0",
+    borderColor: "#347ff0",
+  },
+  statusCheckMark: {
+    color: "white",
+    fontSize: 12,
+    lineHeight: 15,
+    fontWeight: "700",
+  },
+  priceHeading: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginTop: 6,
+  },
+  priceSelection: {
+    color: "#525d67",
+    fontSize: 12,
+  },
+  sliderTouchArea: {
+    height: 32,
+    justifyContent: "center",
+    marginHorizontal: 10,
+  },
+  sliderTrack: {
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: "#cfd4d8",
+    justifyContent: "center",
+  },
+  sliderSelection: {
+    position: "absolute",
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: "#347ff0",
+  },
+  sliderThumb: {
+    position: "absolute",
+    width: 18,
+    height: 18,
+    marginLeft: -9,
+    borderRadius: 9,
+    backgroundColor: "#347ff0",
+    borderWidth: 2,
+    borderColor: "white",
+    shadowColor: "#000",
+    shadowOpacity: 0.16,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  rangeLabels: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginHorizontal: 4,
+    marginTop: -6,
+  },
+  rangeLabel: {
+    color: "#68737d",
+    fontSize: 11,
+  },
+  pricePresets: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+    marginTop: 3,
+  },
+  rangePreset: {
+    flexGrow: 1,
+    minHeight: 38,
+    minWidth: "46%",
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 20,
+    backgroundColor: "#f1f2f3",
+    borderWidth: 1,
+    borderColor: "#e5e7e8",
+    paddingHorizontal: 10,
+  },
+  rangePresetActive: {
+    backgroundColor: "#eaf1ff",
+    borderColor: "#c6d8ff",
+  },
+  rangePresetLabel: {
+    color: "#4e5962",
+    fontSize: 12,
+  },
+  rangePresetLabelActive: {
+    color: "#246be0",
+    fontWeight: "600",
+  },
+  filterActions: {
+    flexDirection: "row",
+    gap: 12,
+    marginTop: 10,
+  },
+  clearButton: {
+    flex: 1,
+    minHeight: 46,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 23,
+    backgroundColor: "#f0f1f2",
+  },
+  clearLabel: {
+    color: "#30363b",
+    fontSize: 15,
+    fontWeight: "600",
+  },
+  applyButton: {
+    flex: 1,
+    minHeight: 46,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 23,
+    backgroundColor: "#347ff0",
+  },
+  radio: {
+    width: 21,
+    height: 21,
+    borderRadius: 11,
+    borderWidth: 1.5,
+    borderColor: "#a9afb5",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  radioSelected: {
+    borderColor: "#24734a",
+  },
+  radioDot: {
+    width: 11,
+    height: 11,
+    borderRadius: 6,
+    backgroundColor: "#24734a",
   },
   sheetHandle: {
     alignSelf: "center",
