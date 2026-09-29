@@ -238,6 +238,50 @@ export default function Index() {
         </Text>
       </View>
       <BlurView intensity={36} tint="light" style={styles.contentSheet}>
+        <View style={styles.controls}>
+          <Pressable
+            accessibilityRole="switch"
+            accessibilityState={{ checked: reservationFilter === "unreserved" }}
+            onPress={() => setReservationFilter((filter) => filter === "unreserved" ? "all" : "unreserved")}
+            style={styles.togglePressable}
+          >
+            <BlurView intensity={36} tint="light" style={styles.unreservedToggle}>
+              <View style={[styles.toggleTrack, reservationFilter === "unreserved" && styles.toggleTrackActive]}>
+                <View style={[styles.toggleThumb, reservationFilter === "unreserved" && styles.toggleThumbActive]} />
+              </View>
+              <Text style={styles.controlLabel}>Unreserved only</Text>
+            </BlurView>
+          </Pressable>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Choose sorting"
+            onPress={openSortSheet}
+            style={styles.controlPressable}
+          >
+            <BlurView intensity={36} tint="light" style={styles.controlButton}>
+              <Text style={styles.controlIcon}>↕</Text>
+              <Text style={styles.controlLabel}>Sort</Text>
+            </BlurView>
+          </Pressable>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Choose filters"
+            onPress={openFilterSheet}
+            style={styles.controlPressable}
+          >
+            <BlurView
+              intensity={36}
+              tint="light"
+              style={[
+                styles.controlButton,
+                (reservationFilter !== "all" || minPrice > 0 || maxPrice < MAX_PRICE_DKK) && styles.controlActive,
+              ]}
+            >
+              <Text style={styles.controlIcon}>☷</Text>
+              <Text style={styles.controlLabel}>Filter</Text>
+            </BlurView>
+          </Pressable>
+        </View>
       <FlatList
         numColumns={2}
         columnWrapperStyle={styles.cardRow}
@@ -245,52 +289,6 @@ export default function Index() {
         contentContainerStyle={styles.listContent}
         data={visibleItems}
         keyExtractor={(item) => item.id}
-        ListHeaderComponent={
-          <View style={styles.controls}>
-              <Pressable
-                accessibilityRole="switch"
-                accessibilityState={{ checked: reservationFilter === "unreserved" }}
-                onPress={() => setReservationFilter((filter) => filter === "unreserved" ? "all" : "unreserved")}
-                style={styles.togglePressable}
-              >
-                <BlurView intensity={36} tint="light" style={styles.unreservedToggle}>
-                  <View style={[styles.toggleTrack, reservationFilter === "unreserved" && styles.toggleTrackActive]}>
-                    <View style={[styles.toggleThumb, reservationFilter === "unreserved" && styles.toggleThumbActive]} />
-                  </View>
-                  <Text style={styles.controlLabel}>Unreserved only</Text>
-                </BlurView>
-              </Pressable>
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel="Choose sorting"
-                onPress={openSortSheet}
-                style={styles.controlPressable}
-              >
-                <BlurView intensity={36} tint="light" style={styles.controlButton}>
-                  <Text style={styles.controlIcon}>↕</Text>
-                  <Text style={styles.controlLabel}>Sort</Text>
-                </BlurView>
-              </Pressable>
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel="Choose filters"
-                onPress={openFilterSheet}
-                style={styles.controlPressable}
-              >
-                <BlurView
-                  intensity={36}
-                  tint="light"
-                  style={[
-                    styles.controlButton,
-                    (reservationFilter !== "all" || minPrice > 0 || maxPrice < MAX_PRICE_DKK) && styles.controlActive,
-                  ]}
-                >
-                  <Text style={styles.controlIcon}>☷</Text>
-                  <Text style={styles.controlLabel}>Filter</Text>
-                </BlurView>
-              </Pressable>
-          </View>
-        }
         ListEmptyComponent={
           <Text style={styles.statusText}>
             {items.length === 0 ? "No items yet." : "No items match these filters."}
@@ -371,14 +369,13 @@ export default function Index() {
       />
       </BlurView>
 
-      <BlurView pointerEvents="none" intensity={42} tint="light" style={styles.fabBackdrop} />
-
       <Pressable
         accessibilityRole="button"
         accessibilityLabel="Add wishlist item"
         onPress={() => setIsAddModalVisible(true)}
         style={({ pressed }) => [styles.addBar, pressed && styles.fabPressed]}
       >
+        <BlurView pointerEvents="none" intensity={48} tint="light" style={styles.addBarGlass} />
         <Text style={styles.addBarLabel}>＋ Add item</Text>
       </Pressable>
 
@@ -832,6 +829,7 @@ const styles = StyleSheet.create({
     overflow: "hidden",
   },
   controls: {
+    paddingHorizontal: 14,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
@@ -1037,7 +1035,7 @@ const styles = StyleSheet.create({
     bottom: 22,
     height: 46,
     borderRadius: 24,
-    backgroundColor: "rgba(255,255,255,0.38)",
+    backgroundColor: "rgba(255,255,255,0.28)",
     alignItems: "center",
     justifyContent: "center",
     borderWidth: 1,
@@ -1049,16 +1047,10 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.14,
     shadowRadius: 6,
   },
-  fabBackdrop: {
-    position: "absolute",
-    left: 0,
-    right: 0,
-    bottom: 0,
-    height: 116,
-    borderTopLeftRadius: 32,
-    borderTopRightRadius: 32,
-    overflow: "hidden",
-    backgroundColor: "rgba(238,230,221,0.28)",
+  addBarGlass: {
+    ...StyleSheet.absoluteFill,
+    borderRadius: 24,
+    backgroundColor: "rgba(255,255,255,0.16)",
   },
   fabPressed: {
     opacity: 0.82,
