@@ -1,98 +1,135 @@
-import * as Device from 'expo-device';
-import { Platform, StyleSheet } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { WishItem, getItems } from "@/api";
+import { useEffect, useState } from "react";
+import { ActivityIndicator, FlatList, StyleSheet, Text, View } from "react-native";
 
-import { AnimatedIcon } from '@/components/animated-icon';
-import { HintRow } from '@/components/hint-row';
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
-import { WebBadge } from '@/components/web-badge';
-import { BottomTabInset, MaxContentWidth, Spacing } from '@/constants/theme';
+export default function Index() {
 
-function getDevMenuHint() {
-  if (Platform.OS === 'web') {
-    return <ThemedText type="small">use browser devtools</ThemedText>;
-  }
-  if (Device.isDevice) {
+  const [items, setItems] = useState<WishItem[]>([])
+  const [errorLoadingItems, setErrorLoadingItems] = useState<null | string>(null)
+  const [isLoadingItems, setIsLoadingItems] = useState(true)
+
+
+
+
+  useEffect(()=>{
+    const fetchItems = async ()=> {
+    try {
+      const itemsResponse = await getItems()
+      setItems(itemsResponse)
+      setIsLoadingItems(false)
+    }
+    catch(error){
+      console.error("Could not load items:", error);
+      setErrorLoadingItems("Could not load items. Please try again.");
+    }finally {
+      setIsLoadingItems(false)
+
+    }
+    }
+    fetchItems()
+
+  },[])
+
+
+  if (isLoadingItems) {
     return (
-      <ThemedText type="small">
-        shake device or press <ThemedText type="code">m</ThemedText> in terminal
-      </ThemedText>
+      <View style={styles.centered}>
+        <ActivityIndicator size="large" accessibilityLabel="Loading wishlist items" />
+        <Text style={styles.statusText}>Loading items…</Text>
+      </View>
     );
   }
-  const shortcut = Platform.OS === 'android' ? 'cmd+m (or ctrl+m)' : 'cmd+d';
+
+
+  if (errorLoadingItems) {
+    return (
+      <View style={styles.centered}>
+        <Text style={styles.statusText}>{errorLoadingItems}</Text>
+      </View>
+    );
+  }
+
   return (
-    <ThemedText type="small">
-      press <ThemedText type="code">{shortcut}</ThemedText>
-    </ThemedText>
-  );
-}
-
-export default function HomeScreen() {
-  return (
-    <ThemedView style={styles.container}>
-      <SafeAreaView style={styles.safeArea}>
-        <ThemedView style={styles.heroSection}>
-          <AnimatedIcon />
-          <ThemedText type="title" style={styles.title}>
-            Welcome to&nbsp;Expo
-          </ThemedText>
-        </ThemedView>
-
-        <ThemedText type="code" style={styles.code}>
-          get started
-        </ThemedText>
-
-        <ThemedView type="backgroundElement" style={styles.stepContainer}>
-          <HintRow
-            title="Try editing"
-            hint={<ThemedText type="code">src/app/index.tsx</ThemedText>}
-          />
-          <HintRow title="Dev tools" hint={getDevMenuHint()} />
-          <HintRow
-            title="Fresh start"
-            hint={<ThemedText type="code">npm run reset-project</ThemedText>}
-          />
-        </ThemedView>
-
-        {Platform.OS === 'web' && <WebBadge />}
-      </SafeAreaView>
-    </ThemedView>
+<FlatList
+      style={styles.list}
+      contentContainerStyle={styles.listContent}
+      data={items}
+      keyExtractor={(item) => item.id}
+      ListEmptyComponent={<Text style={styles.statusText}>No items yet.</Text>}
+      renderItem={({ item }) => (
+        <View style={styles.item}>
+          <Text style={styles.title}>{item.title}</Text>
+          <Text style={styles.price}>
+            {(item.priceMinor / 100).toLocaleString("da-DK", {
+              style: "currency",
+              currency: item.currency,
+            })}
+          </Text>
+          {item.reservedBy ? (
+            <Text style={styles.reserved}>Reserved</Text>
+          ) : (
+            <Text style={styles.available}>Available</Text>
+          )}
+        </View>
+      )}
+    />
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    justifyContent: 'center',
-    flexDirection: 'row',
+    alignItems: "center",
+    justifyContent: "center",
   },
-  safeArea: {
+    centered: {
     flex: 1,
-    paddingHorizontal: Spacing.four,
-    alignItems: 'center',
-    gap: Spacing.three,
-    paddingBottom: BottomTabInset + Spacing.three,
-    maxWidth: MaxContentWidth,
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 24,
+    gap: 12,
   },
-  heroSection: {
-    alignItems: 'center',
-    justifyContent: 'center',
+  screen: {
     flex: 1,
-    paddingHorizontal: Spacing.four,
-    gap: Spacing.four,
+    backgroundColor: "#eee6dd",
   },
-  title: {
-    textAlign: 'center',
+  statusText: {
+    color: "#555",
+    fontSize: 16,
+    textAlign: "center",
   },
-  code: {
-    textTransform: 'uppercase',
+    list: {
+
+
+    flex: 1,
+    backgroundColor: "#f7f7f7",
   },
-  stepContainer: {
-    gap: Spacing.three,
-    alignSelf: 'stretch',
-    paddingHorizontal: Spacing.three,
-    paddingVertical: Spacing.four,
-    borderRadius: Spacing.four,
+  listContent: {
+    padding: 16,
+    gap: 12,
   },
-});
+  item: {
+    backgroundColor: "white",
+    borderRadius: 12,
+    padding: 16,
+    gap: 6,
+      },
+      title: {
+    fontSize: 17,
+    fontWeight: "600",
+  },
+  price: {
+    color: "#444",
+    fontSize: 15,
+  },
+  available: {
+    color: "#24734a",
+    fontSize: 14,
+  },
+  reserved: {
+    color: "#8a5b00",
+    fontSize: 14,
+
+
+
+}});
