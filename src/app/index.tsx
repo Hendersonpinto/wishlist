@@ -7,6 +7,7 @@ import {
   unreserveItem,
   WishItem,
 } from "@/api";
+import { Image } from "expo-image";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
@@ -204,6 +205,8 @@ export default function Index() {
   return (
     <View style={styles.screen}>
       <FlatList
+        numColumns={2}
+        columnWrapperStyle={styles.cardRow}
         style={styles.list}
         contentContainerStyle={styles.listContent}
         data={visibleItems}
@@ -251,20 +254,22 @@ export default function Index() {
         }
         renderItem={({ item }) => (
           <View style={styles.item}>
-            <Text style={styles.title}>{item.title}</Text>
+            <View style={styles.productImageStage}>
+              {item.imageUrl ? (
+                <Image source={{ uri: item.imageUrl }} contentFit="cover" transition={180} style={styles.productImage} />
+              ) : (
+                <View style={styles.productPlaceholder}>
+                  <Text style={styles.productEmoji}>{getItemImageFallback(item.title)}</Text>
+                </View>
+              )}
+            </View>
+            <Text numberOfLines={2} style={styles.title}>{item.title}</Text>
             <Text style={styles.price}>
               {(item.priceMinor / 100).toLocaleString("da-DK", {
-                style: "currency",
-                currency: item.currency,
-              })}
+                maximumFractionDigits: 0,
+                minimumFractionDigits: 0,
+              })} kr.
             </Text>
-            {item.reservedBy ? (
-              <Text style={styles.reserved}>
-                {item.reservedBy === CURRENT_USER ? "Reserved by you" : "Reserved"}
-              </Text>
-            ) : (
-              <Text style={styles.available}>Available</Text>
-            )}
             {reserveError?.id === item.id ? (
               <Text style={styles.formError}>{reserveError.message}</Text>
             ) : null}
@@ -290,17 +295,18 @@ export default function Index() {
               ]}
             >
               {reservingItemIds.has(item.id) ? (
-                <ActivityIndicator color="#24734a" />
+                <ActivityIndicator color={item.reservedBy && item.reservedBy !== CURRENT_USER ? "#7b8288" : "white"} />
               ) : (
                 <View style={styles.reserveButtonText}>
                   <Text
                     style={[
                       styles.reserveLabel,
                       item.reservedBy && item.reservedBy !== CURRENT_USER && styles.reserveLabelDisabled,
+                      item.reservedBy === CURRENT_USER && styles.ownedReservationLabel,
                     ]}
                   >
                     {item.reservedBy === CURRENT_USER
-                      ? "Reserved by you"
+                      ? "✓  Reserved by you"
                       : item.reservedBy
                         ? "Reserved"
                         : "Reserve"}
@@ -319,9 +325,9 @@ export default function Index() {
         accessibilityRole="button"
         accessibilityLabel="Add wishlist item"
         onPress={() => setIsAddModalVisible(true)}
-        style={({ pressed }) => [styles.fab, pressed && styles.fabPressed]}
+        style={({ pressed }) => [styles.addBar, pressed && styles.fabPressed]}
       >
-        <Text style={styles.fabLabel}>+</Text>
+        <Text style={styles.addBarLabel}>＋ Add item</Text>
       </Pressable>
 
       <Modal
@@ -583,6 +589,19 @@ function RangePreset({ label, active, onPress }: { label: string; active: boolea
   );
 }
 
+function getItemImageFallback(title: string) {
+  const normalizedTitle = title.toLowerCase();
+  if (normalizedTitle.includes("coffee") || normalizedTitle.includes("espresso") || normalizedTitle.includes("pour-over")) return "☕";
+  if (normalizedTitle.includes("blanket") || normalizedTitle.includes("wool")) return "🧣";
+  if (normalizedTitle.includes("headphone")) return "🎧";
+  if (normalizedTitle.includes("pan") || normalizedTitle.includes("cast iron")) return "🍳";
+  if (normalizedTitle.includes("lamp")) return "💡";
+  if (normalizedTitle.includes("lego") || normalizedTitle.includes("architecture")) return "🏰";
+  if (normalizedTitle.includes("shoe") || normalizedTitle.includes("nike")) return "👟";
+  if (normalizedTitle.includes("kindle") || normalizedTitle.includes("paperwhite") || normalizedTitle.includes("book")) return "📖";
+  return "🎁";
+}
+
 function PriceRangeSlider({ min, max, onChangeMin, onChangeMax }: {
   min: number;
   max: number;
@@ -651,7 +670,7 @@ const styles = StyleSheet.create({
   },
   screen: {
     flex: 1,
-    backgroundColor: "#f7f7f7",
+    backgroundColor: "#f2ece6",
   },
   statusText: {
     color: "#555",
@@ -663,11 +682,11 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
     gap: 7,
-    marginBottom: 14,
+    marginBottom: 12,
   },
   unreservedToggle: {
     flex: 1,
-    minHeight: 40,
+    minHeight: 36,
     borderRadius: 20,
     paddingHorizontal: 10,
     flexDirection: "row",
@@ -698,7 +717,7 @@ const styles = StyleSheet.create({
     alignSelf: "flex-end",
   },
   controlButton: {
-    minHeight: 40,
+    minHeight: 36,
     flexDirection: "row",
     alignItems: "center",
     gap: 5,
@@ -724,25 +743,65 @@ const styles = StyleSheet.create({
   },
   list: {
     flex: 1,
-    backgroundColor: "#f7f7f7",
+    backgroundColor: "#f2ece6",
   },
   listContent: {
-    padding: 16,
-    gap: 12,
+    paddingHorizontal: 14,
+    paddingTop: 12,
+    paddingBottom: 94,
+    gap: 10,
+  },
+  cardRow: {
+    gap: 10,
   },
   item: {
     backgroundColor: "white",
+    borderRadius: 17,
+    padding: 8,
+    gap: 3,
+    flex: 1,
+    minWidth: 0,
+    overflow: "hidden",
+    shadowColor: "#614d3e",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.09,
+    shadowRadius: 5,
+    elevation: 2,
+  },
+  productImageStage: {
+    height: 102,
+    width: "100%",
     borderRadius: 12,
-    padding: 16,
-    gap: 6,
+    overflow: "hidden",
+    backgroundColor: "#eee7df",
+    marginBottom: 3,
+  },
+  productImage: {
+    width: "100%",
+    height: "100%",
+  },
+  productPlaceholder: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#eee5dc",
+  },
+  productEmoji: {
+    fontSize: 52,
   },
   title: {
-    fontSize: 17,
-    fontWeight: "600",
+    minHeight: 30,
+    fontSize: 12,
+    lineHeight: 14,
+    fontWeight: "700",
+    color: "#1e242a",
   },
   price: {
-    color: "#444",
-    fontSize: 15,
+    color: "#252b31",
+    fontSize: 12,
+    lineHeight: 15,
+    fontWeight: "700",
+    marginBottom: 3,
   },
   available: {
     color: "#24734a",
@@ -753,25 +812,27 @@ const styles = StyleSheet.create({
     fontSize: 14,
   },
   reserveButton: {
-    minHeight: 46,
-    borderRadius: 10,
+    minHeight: 31,
+    borderRadius: 16,
     borderWidth: 1,
-    borderColor: "#24734a",
+    borderColor: "#1f4470",
+    backgroundColor: "#1f4470",
     alignItems: "center",
     justifyContent: "center",
-    marginTop: 6,
+    marginTop: 2,
+    marginBottom: 1,
   },
   reserveButtonDisabled: {
-    borderColor: "#d7dce0",
-    backgroundColor: "#f0f2f4",
+    borderColor: "#e1e3e5",
+    backgroundColor: "#e1e3e5",
   },
   reserveLabel: {
-    color: "#24734a",
-    fontSize: 15,
+    color: "white",
+    fontSize: 12,
     fontWeight: "700",
   },
   reserveLabelDisabled: {
-    color: "#7b8288",
+    color: "#79828b",
   },
   reserveButtonText: {
     alignItems: "center",
@@ -779,37 +840,42 @@ const styles = StyleSheet.create({
     gap: 1,
   },
   ownedReservationButton: {
-    borderColor: "#b7d8c5",
-    backgroundColor: "#eef7f1",
+    borderWidth: 0,
+    borderColor: "transparent",
+    backgroundColor: "#ffffff",
+  },
+  ownedReservationLabel: {
+    color: "#1f4470",
   },
   unreserveHint: {
-    color: "#527563",
-    fontSize: 11,
+    color: "#58718c",
+    fontSize: 9,
   },
-  fab: {
+  addBar: {
     position: "absolute",
-    right: 20,
-    bottom: 24,
-    width: 58,
-    height: 58,
-    borderRadius: 29,
-    backgroundColor: "#24734a",
+    left: 16,
+    right: 16,
+    bottom: 22,
+    height: 46,
+    borderRadius: 24,
+    backgroundColor: "rgba(255,255,255,0.91)",
     alignItems: "center",
     justifyContent: "center",
-    elevation: 5,
-    shadowColor: "#000",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.9)",
+    elevation: 6,
+    shadowColor: "#55483d",
     shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.22,
-    shadowRadius: 5,
+    shadowOpacity: 0.14,
+    shadowRadius: 6,
   },
   fabPressed: {
     opacity: 0.82,
   },
-  fabLabel: {
-    color: "white",
-    fontSize: 34,
-    lineHeight: 38,
-    fontWeight: "400",
+  addBarLabel: {
+    color: "#4d555b",
+    fontSize: 14,
+    fontWeight: "600",
   },
   modalRoot: {
     flex: 1,
