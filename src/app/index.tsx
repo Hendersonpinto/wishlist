@@ -219,6 +219,25 @@ export default function Index() {
 
   return (
     <View style={styles.screen}>
+      <View style={styles.wishlistHeader}>
+        <Image
+          source={require("../../assets/images/wishlist-header.png")}
+          contentFit="cover"
+          style={StyleSheet.absoluteFill}
+        />
+        <View pointerEvents="none" style={styles.wishlistHeaderShade} />
+        <View style={styles.wishlistIdentity}>
+          <View accessibilityLabel="Henderson's avatar" style={styles.wishlistAvatar}>
+            <Text style={styles.wishlistAvatarInitial}>H</Text>
+          </View>
+          <Text style={styles.wishlistTitle}>Henderson's Birthday</Text>
+        </View>
+        <Text style={styles.wishlistDate}>29th September 2026</Text>
+        <Text style={styles.wishlistDescription}>
+          Need some inspo for my birthday? Here you are!
+        </Text>
+      </View>
+      <BlurView intensity={36} tint="light" style={styles.contentSheet}>
       <FlatList
         numColumns={2}
         columnWrapperStyle={styles.cardRow}
@@ -228,48 +247,48 @@ export default function Index() {
         keyExtractor={(item) => item.id}
         ListHeaderComponent={
           <View style={styles.controls}>
-            <Pressable
-              accessibilityRole="switch"
-              accessibilityState={{ checked: reservationFilter === "unreserved" }}
-              onPress={() => setReservationFilter((filter) => filter === "unreserved" ? "all" : "unreserved")}
-              style={styles.togglePressable}
-            >
-              <BlurView intensity={36} tint="light" style={styles.unreservedToggle}>
-                <View style={[styles.toggleTrack, reservationFilter === "unreserved" && styles.toggleTrackActive]}>
-                  <View style={[styles.toggleThumb, reservationFilter === "unreserved" && styles.toggleThumbActive]} />
-                </View>
-                <Text style={styles.controlLabel}>Unreserved only</Text>
-              </BlurView>
-            </Pressable>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="Choose sorting"
-              onPress={openSortSheet}
-              style={styles.controlPressable}
-            >
-              <BlurView intensity={36} tint="light" style={styles.controlButton}>
-                <Text style={styles.controlIcon}>↕</Text>
-                <Text style={styles.controlLabel}>Sort</Text>
-              </BlurView>
-            </Pressable>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="Choose filters"
-              onPress={openFilterSheet}
-              style={styles.controlPressable}
-            >
-              <BlurView
-                intensity={36}
-                tint="light"
-                style={[
-                  styles.controlButton,
-                  (reservationFilter !== "all" || minPrice > 0 || maxPrice < MAX_PRICE_DKK) && styles.controlActive,
-                ]}
+              <Pressable
+                accessibilityRole="switch"
+                accessibilityState={{ checked: reservationFilter === "unreserved" }}
+                onPress={() => setReservationFilter((filter) => filter === "unreserved" ? "all" : "unreserved")}
+                style={styles.togglePressable}
               >
-                <Text style={styles.controlIcon}>☷</Text>
-                <Text style={styles.controlLabel}>Filter</Text>
-              </BlurView>
-            </Pressable>
+                <BlurView intensity={36} tint="light" style={styles.unreservedToggle}>
+                  <View style={[styles.toggleTrack, reservationFilter === "unreserved" && styles.toggleTrackActive]}>
+                    <View style={[styles.toggleThumb, reservationFilter === "unreserved" && styles.toggleThumbActive]} />
+                  </View>
+                  <Text style={styles.controlLabel}>Unreserved only</Text>
+                </BlurView>
+              </Pressable>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Choose sorting"
+                onPress={openSortSheet}
+                style={styles.controlPressable}
+              >
+                <BlurView intensity={36} tint="light" style={styles.controlButton}>
+                  <Text style={styles.controlIcon}>↕</Text>
+                  <Text style={styles.controlLabel}>Sort</Text>
+                </BlurView>
+              </Pressable>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Choose filters"
+                onPress={openFilterSheet}
+                style={styles.controlPressable}
+              >
+                <BlurView
+                  intensity={36}
+                  tint="light"
+                  style={[
+                    styles.controlButton,
+                    (reservationFilter !== "all" || minPrice > 0 || maxPrice < MAX_PRICE_DKK) && styles.controlActive,
+                  ]}
+                >
+                  <Text style={styles.controlIcon}>☷</Text>
+                  <Text style={styles.controlLabel}>Filter</Text>
+                </BlurView>
+              </Pressable>
           </View>
         }
         ListEmptyComponent={
@@ -350,6 +369,9 @@ export default function Index() {
           </BlurView>
         )}
       />
+      </BlurView>
+
+      <BlurView pointerEvents="none" intensity={42} tint="light" style={styles.fabBackdrop} />
 
       <Pressable
         accessibilityRole="button"
@@ -737,6 +759,78 @@ const styles = StyleSheet.create({
     fontSize: 16,
     textAlign: "center",
   },
+  wishlistHeader: {
+    minHeight: 250,
+    paddingTop: 52,
+    paddingHorizontal: 20,
+    paddingBottom: 60,
+    justifyContent: "flex-end",
+    overflow: "hidden",
+  },
+  wishlistHeaderShade: {
+    ...StyleSheet.absoluteFill,
+    backgroundColor: "rgba(20,15,11,0.28)",
+  },
+  wishlistIdentity: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    marginBottom: 7,
+  },
+  wishlistAvatar: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    borderWidth: 1.5,
+    borderColor: "rgba(255,255,255,0.9)",
+    backgroundColor: "rgba(255,255,255,0.3)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  wishlistAvatarInitial: {
+    color: "white",
+    fontSize: 19,
+    fontWeight: "700",
+  },
+  wishlistTitle: {
+    flex: 1,
+    color: "white",
+    fontSize: 22,
+    lineHeight: 25,
+    fontWeight: "700",
+    textShadowColor: "rgba(0,0,0,0.35)",
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 4,
+  },
+  wishlistDate: {
+    color: "white",
+    fontSize: 13,
+    lineHeight: 18,
+    fontWeight: "600",
+    textShadowColor: "rgba(0,0,0,0.35)",
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 4,
+  },
+  wishlistDescription: {
+    color: "white",
+    fontSize: 13,
+    lineHeight: 17,
+    marginTop: 2,
+    textShadowColor: "rgba(0,0,0,0.4)",
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 4,
+  },
+  contentSheet: {
+    flex: 1,
+    marginTop: -40,
+    paddingTop: 22,
+    borderTopLeftRadius: 26,
+    borderTopRightRadius: 26,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.82)",
+    backgroundColor: "rgba(255,255,255,0.24)",
+    overflow: "hidden",
+  },
   controls: {
     flexDirection: "row",
     alignItems: "center",
@@ -817,11 +911,11 @@ const styles = StyleSheet.create({
   },
   list: {
     flex: 1,
-    backgroundColor: "#eee6dd",
+    backgroundColor: "transparent",
   },
   listContent: {
     paddingHorizontal: 14,
-    paddingTop: 12,
+    paddingTop: 0,
     paddingBottom: 94,
     gap: 10,
   },
@@ -954,6 +1048,17 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 3 },
     shadowOpacity: 0.14,
     shadowRadius: 6,
+  },
+  fabBackdrop: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    bottom: 0,
+    height: 116,
+    borderTopLeftRadius: 32,
+    borderTopRightRadius: 32,
+    overflow: "hidden",
+    backgroundColor: "rgba(238,230,221,0.28)",
   },
   fabPressed: {
     opacity: 0.82,
