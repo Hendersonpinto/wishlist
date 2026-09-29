@@ -1,4 +1,12 @@
-import { addItem, getItems, WishItem } from "@/api";
+import {
+  addItem,
+  ConflictError,
+  CURRENT_USER,
+  getItems,
+  reserveItem,
+  unreserveItem,
+  WishItem,
+} from "@/api";
 import { useEffect, useState } from "react";
 import {
   ActivityIndicator,
@@ -23,6 +31,9 @@ export default function Index() {
   const [url, setUrl] = useState("");
   const [formError, setFormError] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+  const [reservingItemIds, setReservingItemIds] = useState<Set<string>>(() => new Set());
+  const [conflictItem, setConflictItem] = useState<WishItem | null>(null);
+  const [reserveError, setReserveError] = useState<{ id: string; message: string } | null>(null);
 
   useEffect(() => {
     async function loadItems() {
@@ -47,7 +58,7 @@ export default function Index() {
       return;
     }
     if (!price.trim() || !Number.isFinite(parsedPrice) || parsedPrice < 0) {
-      setFormError("Enter a valid price.");
+      setFormError("Enter a valid pric.");
       return;
     }
 
@@ -69,6 +80,40 @@ export default function Index() {
       setFormError("Could not add the item. Please try again.");
     } finally {
       setIsSaving(false);
+    }
+  }
+
+  async function handleReservationToggle(item: WishItem) {
+    setReservingItemIds((currentIds) => new Set(currentIds).add(item.id));
+    setReserveError(null);
+    try {
+      const updatedItem =
+        item.reservedBy === CURRENT_USER
+          ? await unreserveItem(item.id)
+          : await reserveItem(item.id);
+      setItems((currentItems) =>
+        currentItems.map((currentItem) =>
+          currentItem.id === updatedItem.id ? updatedItem : currentItem,
+        ),
+      );
+    } catch (error) {
+      if (error instanceof ConflictError) {
+        setItems((currentItems) =>
+          currentItems.map((currentItem) =>
+            currentItem.id === error.item.id ? error.item : currentItem,
+          ),
+        );
+        setConflictItem(error.item);
+      } else {
+        console.error("Could not reserve item:", error);
+        setReserveError({ id: item.id, message: "Could not reserve. Please try again." });
+      }
+    } finally {
+      setReservingItemIds((currentIds) => {
+        const nextIds = new Set(currentIds);
+        nextIds.delete(item.id);
+        return nextIds;
+      });
     }
   }
 
@@ -107,10 +152,58 @@ export default function Index() {
               })}
             </Text>
             {item.reservedBy ? (
-              <Text style={styles.reserved}>Reserved</Text>
+              <Text style={styles.reserved}>
+                {item.reservedBy === CURRENT_USER ? "Reserved by you" : "Reserved"}
+              </Text>
             ) : (
               <Text style={styles.available}>Available</Text>
             )}
+            {reserveError?.id === item.id ? (
+              <Text style={styles.formError}>{reserveError.message}</Text>
+            ) : null}
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={
+                item.reservedBy === CURRENT_USER
+                  ? `Unreserve ${item.title}`
+                  : item.reservedBy
+                    ? "Item already reserved"
+                    : `Reserve ${item.title}`
+              }
+              accessibilityState={{
+                disabled: (Boolean(item.reservedBy) && item.reservedBy !== CURRENT_USER) || reservingItemIds.has(item.id),
+              }}
+              disabled={(Boolean(item.reservedBy) && item.reservedBy !== CURRENT_USER) || reservingItemIds.has(item.id)}
+              onPress={() => handleReservationToggle(item)}
+              style={({ pressed }) => [
+                styles.reserveButton,
+                ((Boolean(item.reservedBy) && item.reservedBy !== CURRENT_USER) || reservingItemIds.has(item.id)) && styles.reserveButtonDisabled,
+                item.reservedBy === CURRENT_USER && styles.ownedReservationButton,
+                pressed && (!item.reservedBy || item.reservedBy === CURRENT_USER) && styles.submitButtonPressed,
+              ]}
+            >
+              {reservingItemIds.has(item.id) ? (
+                <ActivityIndicator color="#24734a" />
+              ) : (
+                <View style={styles.reserveButtonText}>
+                  <Text
+                    style={[
+                      styles.reserveLabel,
+                      item.reservedBy && item.reservedBy !== CURRENT_USER && styles.reserveLabelDisabled,
+                    ]}
+                  >
+                    {item.reservedBy === CURRENT_USER
+                      ? "Reserved by you"
+                      : item.reservedBy
+                        ? "Reserved"
+                        : "Reserve"}
+                  </Text>
+                  {item.reservedBy === CURRENT_USER ? (
+                    <Text style={styles.unreserveHint}>Tap to unreserve</Text>
+                  ) : null}
+                </View>
+              )}
+            </Pressable>
           </View>
         )}
       />
@@ -206,6 +299,57 @@ export default function Index() {
           </View>
         </KeyboardAvoidingView>
       </Modal>
+
+      <Modal
+        visible={conflictItem !== null}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setConflictItem(null)}
+      >
+        <View style={styles.modalRoot}>
+          <Pressable
+            accessibilityLabel="Close reservation notice"
+            onPress={() => setConflictItem(null)}
+            style={styles.backdrop}
+          />
+          <View style={styles.conflictSheet}>
+            <View style={styles.sheetHandle} />
+            <View style={styles.conflictIcon}>
+              <Text style={styles.conflictIconLabel}>♙</Text>
+            </View>
+            <Text style={styles.conflictTitle}>Someone else just reserved this gift</Text>
+            <Text style={styles.conflictDescription}>
+              This item is no longer available. Try another gift from the list.
+            </Text>
+            {conflictItem ? (
+              <View style={styles.conflictItem}>
+                <View style={styles.conflictItemImage}>
+                  <Text style={styles.conflictItemEmoji}>🎁</Text>
+                </View>
+                <View style={styles.conflictItemInfo}>
+                  <Text numberOfLines={1} style={styles.conflictItemTitle}>
+                    {conflictItem.title}
+                  </Text>
+                  <Text style={styles.conflictItemPrice}>
+                    {(conflictItem.priceMinor / 100).toLocaleString("da-DK", {
+                      style: "currency",
+                      currency: conflictItem.currency,
+                    })}
+                  </Text>
+                </View>
+                <Text style={styles.conflictBadge}>Reserved</Text>
+              </View>
+            ) : null}
+            <Pressable
+              accessibilityRole="button"
+              onPress={() => setConflictItem(null)}
+              style={({ pressed }) => [styles.conflictButton, pressed && styles.submitButtonPressed]}
+            >
+              <Text style={styles.submitLabel}>View updated list</Text>
+            </Pressable>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -256,6 +400,40 @@ const styles = StyleSheet.create({
   reserved: {
     color: "#8a5b00",
     fontSize: 14,
+  },
+  reserveButton: {
+    minHeight: 46,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "#24734a",
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: 6,
+  },
+  reserveButtonDisabled: {
+    borderColor: "#d7dce0",
+    backgroundColor: "#f0f2f4",
+  },
+  reserveLabel: {
+    color: "#24734a",
+    fontSize: 15,
+    fontWeight: "700",
+  },
+  reserveLabelDisabled: {
+    color: "#7b8288",
+  },
+  reserveButtonText: {
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 1,
+  },
+  ownedReservationButton: {
+    borderColor: "#b7d8c5",
+    backgroundColor: "#eef7f1",
+  },
+  unreserveHint: {
+    color: "#527563",
+    fontSize: 11,
   },
   fab: {
     position: "absolute",
@@ -360,5 +538,95 @@ const styles = StyleSheet.create({
     color: "white",
     fontSize: 16,
     fontWeight: "700",
+  },
+  conflictSheet: {
+    backgroundColor: "#fffaf7",
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    paddingHorizontal: 22,
+    paddingTop: 12,
+    paddingBottom: 30,
+    alignItems: "center",
+    gap: 12,
+  },
+  conflictIcon: {
+    width: 54,
+    height: 54,
+    borderRadius: 27,
+    marginTop: 4,
+    backgroundColor: "#ffe4e0",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  conflictIconLabel: {
+    color: "#e94840",
+    fontSize: 27,
+  },
+  conflictTitle: {
+    color: "#20242a",
+    fontSize: 17,
+    lineHeight: 23,
+    textAlign: "center",
+    fontWeight: "700",
+  },
+  conflictDescription: {
+    color: "#687078",
+    fontSize: 14,
+    lineHeight: 20,
+    textAlign: "center",
+    marginTop: -6,
+  },
+  conflictItem: {
+    width: "100%",
+    minHeight: 64,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 9,
+    borderRadius: 13,
+    backgroundColor: "#f1eee9",
+    padding: 8,
+    marginTop: 3,
+  },
+  conflictItemImage: {
+    width: 46,
+    height: 46,
+    borderRadius: 9,
+    backgroundColor: "#ded8ce",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  conflictItemEmoji: {
+    fontSize: 24,
+  },
+  conflictItemInfo: {
+    flex: 1,
+    gap: 3,
+  },
+  conflictItemTitle: {
+    color: "#292d31",
+    fontSize: 13,
+    fontWeight: "600",
+  },
+  conflictItemPrice: {
+    color: "#292d31",
+    fontSize: 12,
+  },
+  conflictBadge: {
+    overflow: "hidden",
+    borderRadius: 9,
+    backgroundColor: "#e1e6eb",
+    color: "#57616b",
+    paddingHorizontal: 8,
+    paddingVertical: 5,
+    fontSize: 11,
+  },
+  conflictButton: {
+    width: "100%",
+    minHeight: 48,
+    borderRadius: 24,
+    backgroundColor: "#347ff0",
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: 2,
   },
 });
